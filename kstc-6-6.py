@@ -10,6 +10,8 @@ import seaborn as sns
 from tqdm import tqdm
 import heapq as hq
 
+# 给shapelet增加类别归属
+
 
 # 计算方差窗口的大小
 def computeWinSize(length, b):
@@ -102,8 +104,6 @@ def isPeakOrValley(std_arr, index, b):
     return flag
 
 
-
-
 # 找到所有合适的区间
 def fitPoint(stdA, indexA, b):
     w = computeWinSize(len(stdA), b)
@@ -126,10 +126,10 @@ def extractFeaturePoint(arr, a, b):
 
 
 # 判断有几个关键点与它相近
-def closeNums(keyList,key,threshold):
+def closeNums(keyList, key, threshold):
     cnt = 0
     cnt += keyList.count(key)
-    for i in range(1,threshold):
+    for i in range(1, threshold):
         a = key + i
         b = key - i
         cnt += keyList.count(a)
@@ -138,27 +138,27 @@ def closeNums(keyList,key,threshold):
 
 
 class keyPoint:
-    def __init__(self,key,cnt,dim):
+    def __init__(self, key, cnt, dim):
         self.key = key
         self.cnt = cnt
         self.dim = dim
 
 
 class smallKeyPoint:
-    def __init__(self,key,dim):
+    def __init__(self, key, dim):
         self.key = key
         self.dim = dim
 
 
 # 找到较为相近的关键点
 # 找到较为相近的关键点
-def selectKeys(data,alp,blt,howclose,orgin_dim_nums):
+def selectKeys(data, alp, blt, howclose, orgin_dim_nums):
     # 原始data顺序 样本数 维度数 序列长度
     dim_nums = data.shape[1]
     sample_nums = data.shape[0]
     all_keys = []
     for sm in tqdm(range(sample_nums)):
-        one_sample  = data[sm]
+        one_sample = data[sm]
         ################ 原始序列 #####################
 
         # 每个维度的关键点下标集合
@@ -167,7 +167,7 @@ def selectKeys(data,alp,blt,howclose,orgin_dim_nums):
         ex_key_points = []
         for dn in range(orgin_dim_nums):
             # keys 关键点的下标
-            keys = extractFeaturePoint(one_sample[dn],alp,blt)
+            keys = extractFeaturePoint(one_sample[dn], alp, blt)
             key_points.append(keys)
         # 有一部分在构建的序列上
 
@@ -183,11 +183,11 @@ def selectKeys(data,alp,blt,howclose,orgin_dim_nums):
 
             ekl = []
             for k in kl:
-                cnt = closeNums(key_list,k,howclose)
-                ekl.append(keyPoint(k,cnt,dn))
+                cnt = closeNums(key_list, k, howclose)
+                ekl.append(keyPoint(k, cnt, dn))
             ex_key_points.extend(ekl)
 
-        ex_key_points.sort(key=lambda x:x.cnt,reverse=True)
+        ex_key_points.sort(key=lambda x: x.cnt, reverse=True)
         # 筛选
         res_keys = ex_key_points[:]
         res = 0
@@ -202,15 +202,15 @@ def selectKeys(data,alp,blt,howclose,orgin_dim_nums):
         key_points = []
         # 所为维度下的关键点下标
         ex_key_points = []
-        for dn in range(orgin_dim_nums,dim_nums):
+        for dn in range(orgin_dim_nums, dim_nums):
             # keys 关键点的下标
-            keys = extractFeaturePoint(one_sample[dn],alp,blt)
+            keys = extractFeaturePoint(one_sample[dn], alp, blt)
             key_points.append(keys)
         # 有一部分在构建的序列上
 
-        for dn in range(orgin_dim_nums,dim_nums):
+        for dn in range(orgin_dim_nums, dim_nums):
             # 一个维度上的关键下标
-            kl = key_points[dn-orgin_dim_nums]
+            kl = key_points[dn - orgin_dim_nums]
             # 去掉自己维度的下标
             tmp_key_points = key_points[:]
             tmp_key_points.remove(kl)
@@ -220,11 +220,11 @@ def selectKeys(data,alp,blt,howclose,orgin_dim_nums):
 
             ekl = []
             for k in kl:
-                cnt = closeNums(key_list,k,howclose)
-                ekl.append(keyPoint(k,cnt,dn))
+                cnt = closeNums(key_list, k, howclose)
+                ekl.append(keyPoint(k, cnt, dn))
             ex_key_points.extend(ekl)
 
-        ex_key_points.sort(key=lambda x:x.cnt,reverse=True)
+        ex_key_points.sort(key=lambda x: x.cnt, reverse=True)
         # 筛选
         res_keys2 = ex_key_points[:]
         res = 0
@@ -233,20 +233,19 @@ def selectKeys(data,alp,blt,howclose,orgin_dim_nums):
                 res += 1
         res_keys2 = res_keys2[:res]
 
-
-
         all_keys.append(res_keys + res_keys2)
         # all_keys.append(res_keys)
     return all_keys
 
 
 class shapelet:
-    def __init__(self,keyPoint,ylt,st,ed,length,val,sample):
+    def __init__(self, keyPoint, ylt, st, ed, length, val, sample):
         # keyPoint 由那个keyPoint生成
         # ylt 松弛是多少
         # st 起始位置
         # ed 终止位置
         # val shapelet在序列中的实际的值
+        self.classBelong = None
         self.quality = None
         self.keyPoint = keyPoint
         self.ylt = ylt
@@ -255,10 +254,13 @@ class shapelet:
         self.length = length
         self.val = val
         self.sample = sample
-    def setQuality(self,quality):
-        self.quality = quality
 
-def generateCandidates(s,sm,l,keyP,ylt):
+    def setQuality(self, quality):
+        self.quality = quality
+    def setClass(self,classBelong):
+        self.classBelong = classBelong
+
+def generateCandidates(label,s, sm, l, keyP, ylt):
     # sm 为单个样本[维度，长度]
     # keyP 应该为一个keyPoint
     # ylt为松弛参数
@@ -267,7 +269,7 @@ def generateCandidates(s,sm,l,keyP,ylt):
         l = l // 2
         dim = keyP.dim
         s = s[dim]
-        for i in range(-ylt,ylt+1):
+        for i in range(-ylt, ylt + 1):
             # 从中心点两侧的松弛长度进行计算
             if keyP.key - i - l < 0:
                 continue
@@ -275,13 +277,15 @@ def generateCandidates(s,sm,l,keyP,ylt):
             if keyP.key - i + l + 1 >= len(s):
                 continue
             right = keyP.key - i + l + 1
-            spt = shapelet(keyPoint=keyP,ylt=ylt,st=left,ed=right - 1,length=right-left,val=s[left:right],sample=sm)
+            spt = shapelet(keyPoint=keyP, ylt=ylt, st=left, ed=right - 1, length=right - left, val=s[left:right],
+                           sample=sm)
+            spt.setClass(label[sm])
             candidate.append(spt)
     else:
         l = l // 2
         dim = keyP.dim
         s = s[dim]
-        for i in range(-ylt,ylt+1):
+        for i in range(-ylt, ylt + 1):
             # 从中心点两侧的松弛长度进行计算
             if keyP.key - i - l < 0:
                 continue
@@ -289,15 +293,19 @@ def generateCandidates(s,sm,l,keyP,ylt):
             if keyP.key - i + l >= len(s):
                 continue
             right = keyP.key - i + l
-            spt = shapelet(keyPoint=keyP,ylt=ylt,st=left,ed=right - 1,length=right-left,val=s[left:right],sample=sm)
+            spt = shapelet(keyPoint=keyP, ylt=ylt, st=left, ed=right - 1, length=right - left, val=s[left:right],
+                           sample=sm)
+            spt.setClass(label[sm])
             candidate.append(spt)
-            if keyP.key - i - l + 1< 0:
+            if keyP.key - i - l + 1 < 0:
                 continue
             left = keyP.key - i - l + 1
             if keyP.key - i + l + 1 >= len(s):
                 continue
             right = keyP.key - i + l + 1
-            spt = shapelet(keyPoint=keyP,ylt=ylt,st=left,ed=right - 1,length=right-left,val=s[left:right],sample=sm)
+            spt = shapelet(keyPoint=keyP, ylt=ylt, st=left, ed=right - 1, length=right - left, val=s[left:right],
+                           sample=sm)
+            spt.setClass(label[sm])
             candidate.append(spt)
     return candidate
 
@@ -305,7 +313,7 @@ def generateCandidates(s,sm,l,keyP,ylt):
 import collections
 
 
-def findShapeletCandidates(data, lmin, lmax, keys, ylt, odim):
+def findShapeletCandidates(data,label, lmin, lmax, keys, ylt, odim):
     sample_nums = data.shape[0]
     candidate = []
     for sm in tqdm(range(sample_nums)):
@@ -314,8 +322,9 @@ def findShapeletCandidates(data, lmin, lmax, keys, ylt, odim):
         for k in keyList:
             # lmin - lmax
             for l in range(lmin, lmax + 1):
-                candidate.extend(generateCandidates(s, sm, l, k, ylt))
+                candidate.extend(generateCandidates(label,s, sm, l, k, ylt))
     # print(len(candidate))
+    resdt = collections.defaultdict(list)
     dt = collections.defaultdict(list)
     for cd in candidate:
         dt[cd.length].append(cd)
@@ -345,111 +354,152 @@ def findShapeletCandidates(data, lmin, lmax, keys, ylt, odim):
         org_dim_list.sort(key=lambda x: x[1], reverse=True)
         convert_dim_list.sort(key=lambda x: x[1], reverse=True)
 
-
         org_pre_dim = int(len(org_dim_list) * 0.3) if int(len(org_dim_list) * 0.3) > 0 else 1
         org_pre_dims = org_dim_list[:org_pre_dim + 1]
         org_aft_dims = org_dim_list[org_pre_dim + 1:]
         if len(org_pre_dims) > 1:
-            org_pre_dims = random.sample(org_pre_dims, min(org_pre_dim,int(org_pre_dim * 0.7) + 1 if int(org_pre_dim * 0.7) > 0 else 1))
+            org_pre_dims = random.sample(org_pre_dims, min(org_pre_dim, int(org_pre_dim * 0.7) + 1 if int(
+                org_pre_dim * 0.7) > 0 else 1))
         if len(org_aft_dims) > 1:
-            org_aft_dims = random.sample(org_aft_dims, min(len(org_aft_dims),int(len(org_aft_dims) * 0.3) + 1 if int(len(org_aft_dims) * 0.3) > 0 else 1))
+            org_aft_dims = random.sample(org_aft_dims, min(len(org_aft_dims), int(len(org_aft_dims) * 0.3) + 1 if int(
+                len(org_aft_dims) * 0.3) > 0 else 1))
         # print(org_pre_dims,org_aft_dims)
         #
         convert_pre_dim = int(len(convert_dim_list) * 0.3) if int(len(convert_dim_list) * 0.3) > 0 else 1
         convert_pre_dims = convert_dim_list[:convert_pre_dim + 1]
         convert_aft_dims = convert_dim_list[convert_pre_dim + 1:]
         if len(convert_pre_dims) > 1:
-            convert_pre_dims = random.sample(convert_pre_dims, min(convert_pre_dim,int(convert_pre_dim * 0.7)+1 if int(convert_pre_dim * 0.7) > 0 else 1 ))
+            convert_pre_dims = random.sample(convert_pre_dims, min(convert_pre_dim,
+                                                                   int(convert_pre_dim * 0.7) + 1 if int(
+                                                                       convert_pre_dim * 0.7) > 0 else 1))
         if len(convert_aft_dims) > 1:
-            convert_aft_dims = random.sample(convert_aft_dims, min(len(convert_aft_dims),int(len(convert_aft_dims) * 0.3) if int(len(convert_aft_dims) * 0.3) > 0 else 1  ))
+            convert_aft_dims = random.sample(convert_aft_dims, min(len(convert_aft_dims),
+                                                                   int(len(convert_aft_dims) * 0.3) if int(
+                                                                       len(convert_aft_dims) * 0.3) > 0 else 1))
 
         # print(convert_pre_dims,convert_aft_dims)
 
-        dims_list =  org_pre_dims + org_aft_dims + convert_pre_dims + convert_aft_dims
+        # dims_list = org_pre_dims + convert_pre_dims
+        dims_list = org_pre_dims + org_aft_dims + convert_pre_dims + convert_aft_dims
         dims = []
-
 
         for i in dims_list:
             dims.append(i[0])
         dims = list(set(dims))
         # print(dims)
+        # dims = random.sample(dims, len(dims) // 2)
+
+# ##
+# # @context 将每个label分个组
+# # @date 2022/6/13
+# ##
+#         labeldt = collections.defaultdict(list)
+#         for i,v in enumerate(label):
+#             labeldt[v].append(i)
+
 
         # # 筛选维度
         for i in dims:
-
             tmp = res[i]
             # 尽量选取每个样本
             newdt = collections.defaultdict(list)
             for x in tmp:
                 newdt[x.sample].append(x)
             klist = list(newdt.keys())
-
+            # 将每个样本根据类别分个类
+            classdt = collections.defaultdict(list)
+            for ks in klist:
+                if len(newdt[ks]) == 0:
+                    continue
+                else:
+                    classdt[newdt[ks][0].classBelong].append(ks)
+            # classlist 为几个类别
+            classlist = list(classdt.keys())
+            print(classlist)
+            classlist.sort(key=lambda x:len(classdt[x]),reverse=True)
+            # classlist = classlist[:]
+            print(classlist)
+            nnum = 60 // len(classlist)
+            chosenum = len(classlist) * (nnum + 1)
+            # chosenum = 50
             indx = 0
             smp = []
-            while len(smp) <= min(50, len(tmp)):
-                index = klist[indx]
-                indx = (indx + 1) % len(klist)
-                rc = random.choice(newdt[index])
+            # print(classdt)
+            # print(classlist)
+##
+# @context 选取每个类别，选取chosenum个
+#             note ： 这样效果较差，改用选取类别较多的
+# @date 2022/6/13
+##
+            while len(smp) <= chosenum:
+                index = classlist[indx]
+                # indx = (indx + 1) % len(classlist)
+                sms = random.choice(classdt[index])
+                # print(sms)
+                # print(newdt[sms])
+                if len(newdt[sms]) == 0:
+                    continue
+                rc = random.choice(newdt[sms])
                 # 防止死循环
                 cntime = 0
                 while rc in smp:
                     cntime += 1
-                    rc = random.choice(newdt[index])
+                    rc = random.choice(newdt[sms])
                     if cntime == 50:
                         break
                 smp.append(rc)
-            # smp = random.sample(tmp,min(50,len(tmp)))
+            # print(len(smp))
             tmpls.extend(smp)
+        resdt[k] = tmpls
+    print(resdt)
+    return resdt
 
-        dt[k] = tmpls
-    return dt
 
-
-def findDistances(c,l,data):
+def findDistances(c, l, data):
     # 查找获选shapelet在每个样本上的最小值
     ds = []
     dim = c.keyPoint.dim
-    data = np.transpose(data,axes=(1,0,2))
+    data = np.transpose(data, axes=(1, 0, 2))
     sers = data[dim]
     for s in sers:
-        cp = [s[i : i + l] for i in range(0, len(s)-l+1, 1)]
-        ds.append(cdist([c.val],cp,metric='seuclidean').min())
+        cp = [s[i: i + l] for i in range(0, len(s) - l + 1, 1)]
+        ds.append(cdist([c.val], cp, metric='seuclidean').min())
     return np.array(ds)
 
 
-def assessCandidate(ds,label):
+def assessCandidate(ds, label):
     class_groups = []
     for c in np.unique(label):
-        class_groups.append(ds[label==c].tolist())
-#  返回f值
+        class_groups.append(ds[label == c].tolist())
+    #  返回f值
     return f_oneway(*class_groups).statistic
 
 
 def sortByQuality(shapelets):
-    return sorted(shapelets, key=lambda s: s.quality,reverse=True)
+    return sorted(shapelets, key=lambda s: s.quality, reverse=True)
 
 
 class interval:
-    def __init__(self,st,ed):
+    def __init__(self, st, ed):
         self.st = st
         self.ed = ed
-    def isInclude(self,a):
+
+    def isInclude(self, a):
         # 是否被a包含
         if self.st >= a.st and self.ed <= a.ed:
             return True
-
 
 
 def removeSelfSimilar(shapelets):
     ts = shapelets[:][::-1]
     it = []
     for x in ts:
-        it.append(interval(x.st,x.ed))
+        it.append(interval(x.st, x.ed))
     removeIdx = []
     l = len(it)
     # 修改将重叠改为包含
     for i in range(l):
-        for j in range(i+1,l):
+        for j in range(i + 1, l):
             if it[i].isInclude(it[j]):
                 removeIdx.append(i)
                 break
@@ -458,16 +508,15 @@ def removeSelfSimilar(shapelets):
         if i not in removeIdx:
             res.append(ts[i])
 
-
     return res[::-1]
 
 
-def merge(k,kShapelets,shapelets):
+def merge(k, kShapelets, shapelets):
     total_shapelets = kShapelets + shapelets
     return sortByQuality(total_shapelets)[:k]
 
 
-def findShapelets(data,label,dt,k):
+def findShapelets(data, label, dt, k):
     kShapelets = []
     # l 为长度
     for l in dt.keys():
@@ -475,19 +524,20 @@ def findShapelets(data,label,dt,k):
         cd = dt[l]
         if len(cd) == 0:
             continue
-        for i,c in enumerate(tqdm(cd)):
-            ds = findDistances(c,l,data)
-            quality = assessCandidate(ds,label)
+        for i, c in enumerate(tqdm(cd)):
+            ds = findDistances(c, l, data)
+            quality = assessCandidate(ds, label)
             cd[i].setQuality(quality)
         cd = sortByQuality(cd)
         # print(len(cd))
         cd = removeSelfSimilar(cd)
         # print(len(cd))
-        kShapelets = merge(k,kShapelets,cd)
+        kShapelets = merge(k, kShapelets, cd)
     return kShapelets
-        # print(len(cd))
-        # print(cd[0].quality,cd[1].quality,cd[-1].quality)
+    # print(len(cd))
+    # print(cd[0].quality,cd[1].quality,cd[-1].quality)
     # print(k)
+
 
 def load_raw_ts(path, dataset):
     path = path + "raw//" + dataset + "//"
@@ -516,8 +566,8 @@ def genDiffSeries(data):
         for i in range(dim_nums):
             res.append(sm[i])
         # 再计算每个减法维度，然后依次加进去
-        for i in range(dim_nums-1):
-            for j in range(i+1,dim_nums):
+        for i in range(dim_nums - 1):
+            for j in range(i + 1, dim_nums):
                 s1 = sm[i]
                 s2 = sm[j]
                 news = [0 for _ in range(series_length)]
@@ -550,11 +600,11 @@ def run(dts, alpp, bltt, yltt):
 
     print(data_train.shape)
     a = genDiffSeries(data_train)
-    print(a.shape)
-    keys = selectKeys(a, alp, blt, 2,dim_nums)
-    print('select keys')
-    dt = findShapeletCandidates(a, lmin, lmax, keys, ylt,dim_nums)
-    print('select candi')
+    # print(a.shape)
+    keys = selectKeys(a, alp, blt, 2, dim_nums)
+    # print('select keys')
+    dt = findShapeletCandidates(a,target_train, lmin, lmax, keys, ylt, dim_nums)
+    # print('select candi')
     kshapelets = findShapelets(a, target_train, dt, k)
     k = int(series_length * dim_nums)
     dataset = np.zeros((sample_nums, k))
@@ -587,11 +637,11 @@ def run(dts, alpp, bltt, yltt):
     print(accuracy_score(target_train, model.predict(sc.transform(dataset))))
     print(classification_report(target_test, model.predict(sc.transform(dataset_test))))
     print(accuracy_score(target_test, model.predict(sc.transform(dataset_test))))
-    scc = accuracy_score(target_test, model.predict(sc.transform(dataset_test)))
-    s = 'D://STC//' + str(alp) + '_' + str(blt) + '_' + str(ylt) + '.csv'
-    f = open(s, 'a')
-    f.write(dts + ',' + str(scc) + '\n')
-    f.close()
+    # scc = accuracy_score(target_test, model.predict(sc.transform(dataset_test)))
+    # s = 'D://STC//' + str(alp) + '_' + str(blt) + '_' + str(ylt) + '.csv'
+    # f = open(s, 'a')
+    # f.write(dts + ',' + str(scc) + '\n')
+    # f.close()
 
 
 dataset = [
@@ -604,47 +654,48 @@ dataset = [
     # 'FingerMovements',
     # 'HandMovementDirection',
     # 'Handwriting',
-    # 'Libras',
+    'Libras',
     # 'LSST',
     # 'NATOPS',
     # 'PenDigits',
     # 'RacketSports',
-    'SelfRegulationSCP1',
-    'SelfRegulationSCP2',
-    'StandWalkJump',
-    'UWaveGestureLibrary'
+    # 'SelfRegulationSCP1',
+    # 'SelfRegulationSCP2',
+    # 'StandWalkJump',
+    # 'UWaveGestureLibrary'
 ]
 alpp = [
     0.3,
-    0.4,
-    0.5,
-    0.6
+    # 0.4,
+    # 0.5,
+    # 0.6
 ]
 bltt = [
     50,
-    60,
-    70,
-    80,
-    100
+    # 60,
+    # 70,
+    # 80,
+    # 100
 ]
 yltt = [
     3,
-    4,
-    5,
-    6,
-    7,
-    8
+    # 4,
+    # 5,
+    # 6,
+    # 7,
+    # 8
 ]
 
 for dst in dataset:
     for alp in alpp:
         for blt in bltt:
             for ylt in yltt:
-                try:
-                    run(dst, alp, blt, ylt)
-                except:
-                    print("something problem")
-                    s = 'D://STC//pro.txt'
-                    f = open(s, 'a')
-                    f.write(dst + str(alp) + str(blt) + str(ylt))
-                    f.close()
+                # try:
+                #     run(dst, alp, blt, ylt)
+                run(dst, alp, blt, ylt)
+                # except:
+                #     print("something problem")
+                #     s = 'D://STC//pro.txt'
+                #     f = open(s, 'a')
+                #     f.write(dst + str(alp) + str(blt) + str(ylt))
+                #     f.close()
